@@ -1,0 +1,41 @@
+(define dict 
+    (lambda (entries) 
+        (if (dict? entries) 
+            entries 
+            (make-error "invalid dictionary structure"))))
+
+
+(define dict?
+  (lambda (x)
+    (and (list? x)
+         (or (null? x)
+             (and (pair? (car x))
+                  (not (null? (cdr (car x))))
+                  (null? (cdr (cdr (car x))))
+                  (dict? (cdr x)))))))
+
+(define get 
+  (lambda (dict x)
+    (if (null? dict)
+        (make-error "key not found")
+        (if (eq? (car (car dict)) x)
+            (cdr (car dict))
+            (get (cdr dict) x)))))
+
+
+(define make-error
+  (lambda (msg)
+    (list 'error msg)))
+
+
+(define is-error?
+  (lambda (x)
+    (and (list? x)
+         (eq? (car x) 'error))))
+
+
+(define bind
+  (lambda (x f)
+    (if (is-error? x)
+        x
+        (f x))))
