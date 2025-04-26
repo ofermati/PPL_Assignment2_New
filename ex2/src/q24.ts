@@ -94,5 +94,5 @@ import {
   
   /* ✧ ל־2.5.b – כרגע עדיין ריק ✧ */
   export const L32toL3 = (_prog: Program): Program =>
-    makeProgram([]);
+        Dict2App(_prog);
   
