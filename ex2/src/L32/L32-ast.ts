@@ -33,7 +33,7 @@ import { Sexp, Token } from "s-expression";
 ;;         |  ( let ( binding* ) <cexp>+ )  / LetExp(bindings:Binding[], body:CExp[]))
 ;;         |  ( quote <sexp> )              / LitExp(val:SExp)
 ;;         |  ( <cexp> <cexp>* )            / AppExp(operator:CExp, operands:CExp[]))
-;;         |  ( dict (<sexp> <cexp>)* )     / DictExp((key:SExp, value:CExp)[])
+;;         |  ( dict (<sexp> <SExp>)* )     / DictExp((key:SExp, value:SExp)[])
 ;; <binding>  ::= ( <var> <cexp> )           / Binding(var:VarDecl, val:Cexp)
 ;; <prim-op>  ::= + | - | * | / | < | > | = | not |  and | or | eq? | string=?
 ;;                  | cons | car | cdr | pair? | number? | list 
@@ -67,7 +67,7 @@ export type Binding = {tag: "Binding"; var: VarDecl; val: CExp; }
 export type LetExp = {tag: "LetExp"; bindings: Binding[]; body: CExp[]; }
 // L3
 export type LitExp = {tag: "LitExp"; val: SExpValue; }
-export type DictExp   = { tag: "DictExp";   entries: [SExpValue, CExp][] };
+export type DictExp   = { tag: "DictExp";   entries: [SExpValue, SExpValue][] };
 
 // Type value constructors for disjoint types
 export const makeProgram = (exps: Exp[]): Program => ({tag: "Program", exps: exps});
@@ -93,7 +93,7 @@ export const makeLetExp = (bindings: Binding[], body: CExp[]): LetExp =>
 // L3
 export const makeLitExp = (val: SExpValue): LitExp =>
     ({tag: "LitExp", val: val});
-export const makeDictExp   = (entries: [SExpValue, CExp][]): DictExp    => ({ tag: "DictExp", entries });
+export const makeDictExp   = (entries: [SExpValue, SExpValue][]): DictExp    => ({ tag: "DictExp", entries });
 
 
 // Type predicates for disjoint types
@@ -264,12 +264,12 @@ const parseDictExp = (params: Sexp[]): Result<DictExp> => {
     if (isEmpty(params))
         return makeFailure("dict expects at least one (key val) pair");
 
-    const parsePair = (p: Sexp): Result<[SExpValue, CExp]> => {
+    const parsePair = (p: Sexp): Result<[SExpValue, SExpValue]> => {
         if (!isNonEmptyList<Sexp>(p) || p.length !== 2)
             return makeFailure(`dict entry must be of form (key val): ${format(p)}`);
         const [kSexp, vSexp] = p;
         return bind(parseSExp(kSexp), (key: SExpValue) =>
-               mapv(parseL32CExp(vSexp), (val: CExp) => [key, val] as [SExpValue, CExp]));
+               mapv(parseSExp(vSexp), (val: SExpValue) => [key, val] as [SExpValue, SExpValue]));
     };
 
     return mapv(mapResult(parsePair, params), (entries) => makeDictExp(entries));
@@ -337,6 +337,6 @@ export const unparseL32 = (exp: Program | Exp): string =>
     isPrimOp(exp) ? exp.op :
     isLetExp(exp) ? unparseLetExp(exp) :
     isDefineExp(exp) ? `(define ${exp.var.var} ${unparseL32(exp.val)})` :
-    isDictExp(exp) ? `(dict ${exp.entries.map(([k,v]) => `(${valueToString(k)} ${unparseL32(v)})`).join(" ")})` :
+    isDictExp(exp) ? `(dict ${exp.entries.map(([k,v]) => `(${valueToString(k)} ${valueToString(v)})`).join(" ")})` :
     isProgram(exp) ? `(L32 ${unparseLExps(exp.exps)})` :
     exp;
