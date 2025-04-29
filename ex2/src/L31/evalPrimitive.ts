@@ -32,7 +32,7 @@ export const applyPrimitive = (proc: PrimOp, args: Value[]): Result<Value> =>
     proc.op === "boolean?" ? makeOk(typeof (args[0]) === 'boolean') :
     proc.op === "symbol?" ? makeOk(isSymbolSExp(args[0])) :
     proc.op === "string?" ? makeOk(isString(args[0])) :
-    proc.op === "dict" ? isDictPrim(args[0]) ? makeOk(args[0]) : makeFailure(`dict? expects a dict: ${format(args)}`) :
+    proc.op === "dict" ? dictPrim(args):
     proc.op === "get" ? getPrim(args[0], args[1]) :
     proc.op === "dict?" ?  makeOk(isDictPrim(args[0])) :
     makeFailure(`Bad primitive op: ${format(proc.op)}`);
@@ -99,15 +99,56 @@ export const listPrim = (vals: List<Value>): EmptySExp | CompoundSExp =>
 const isPairPrim = (v: Value): boolean =>
     isCompoundSExp(v);
 
-const isDictPrim = (v: Value): boolean =>
-    isEmptySExp(v) ? true :
-    isCompoundSExp(v) && isCompoundSExp(v.val1) && isDictPrim(v.val2) ;
+const dictPrim = (args: Value[]): Result<Value> =>
+    args.length !== 1
+        ? makeFailure(`dict expects exactly one argument: ${format(args)}`)
+        : isDictPrim(args[0])
+            ? makeOk(args[0])                      // מילון תקין – מחזירים כמו־שהוא
+            : makeFailure(`dict expects a quoted list of unique symbol-key pairs: ${format(args)}`);
 
-const getPrim = (dict: Value, key: Value): Result<Value> => 
-        isEmptySExp(dict) ? 
-            makeFailure(`Key not found: ${format(key)}`) :
-            isCompoundSExp(dict) ? 
-                isCompoundSExp(dict.val1) && dict.val1.val1.valueOf === key.valueOf ? 
-                    makeOk(dict.val1.val2) :
-                    getPrim(dict.val2, key) :
-            makeFailure(`Not a dict: ${format(dict)}`);
+
+
+const isDictPrim = (v: Value): boolean => {
+    const helper = (node: Value, seen: ReadonlySet<string>): boolean => {
+        isEmptySExp(node)? true : false;
+        if (!isCompoundSExp(node))
+            return false;
+        const pair = node.val1;     // (k . val)
+        const rest = node.val2;
+        if (!isCompoundSExp(pair))
+            return false;
+        const key = pair.val1;
+        if (!isSymbolSExp(key))
+            return false;
+        const nextSeen = new Set(seen);
+        nextSeen.add(key.val);
+
+        if (nextSeen.size !== seen.size + 1)       // ==> key כבר הופיע קודם
+            return false;
+        return helper(rest, nextSeen);
+    };
+    return helper(v, new Set());
+};
+
+
+const getPrim = (dict: Value, key: Value): Result<Value> => {
+    if (!isDictPrim(dict)) {
+        return makeFailure(`Not a dict: ${format(dict)}`);
+    }
+    if (!isSymbolSExp(key)) {
+        return makeFailure(`Key must be symbol: ${format(key)}`);
+    }
+    const search = (d: Value): Result<Value> => {
+        if (isEmptySExp(d)) {
+            return makeFailure(`Key not found: ${format(key)}`);
+        }
+        if (!isCompoundSExp(d)) {
+            return makeFailure(`Malformed dict structure: ${format(d)}`);
+        }
+        if (!isCompoundSExp(d.val1)) {
+            return makeFailure(`Malformed pair in dict: ${format(d.val1)}`);
+        }
+        return eqPrim([d.val1.val1, key]) ? makeOk(d.val1.val2) : search(d.val2);
+    };
+    return search(dict);
+};
