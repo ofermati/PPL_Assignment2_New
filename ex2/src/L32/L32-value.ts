@@ -81,3 +81,26 @@ export const valueToString = (val: Value): string =>
     isEmptySExp(val) ? "'()" :
     isCompoundSExp(val) ? compoundSExpToString(val) :
     val;
+
+// ========================================================
+// dictValue
+export type DictValue = {
+    tag: "DictValue";
+    entries: [SExpValue,SExpValue][];
+}
+export const makeDictValue = (entries: [SExpValue,SExpValue][]): DictValue =>
+
+
+
+    export interface DictValue {
+    tag: "DictValue";
+    entries: { key: string; val: Value }[];
+}
+
+export const makeDictValue = (entries: { key: string; val: Value }[]): DictValue => ({
+    tag: "DictValue",
+    entries
+});
+
+export const isDictValue = (x: any): x is DictValue =>
+    x.tag === "DictValue";

@@ -1,4 +1,4 @@
-import { reduce } from "ramda";
+import { isEmpty, reduce } from "ramda";
 import { PrimOp } from "./L31-ast";
 import { isCompoundSExp, isEmptySExp, isSymbolSExp, makeCompoundSExp, makeEmptySExp, CompoundSExp, EmptySExp, Value } from "./L31-value";
 import { List, allT, first, isNonEmptyList, rest } from '../shared/list';
@@ -32,6 +32,9 @@ export const applyPrimitive = (proc: PrimOp, args: Value[]): Result<Value> =>
     proc.op === "boolean?" ? makeOk(typeof (args[0]) === 'boolean') :
     proc.op === "symbol?" ? makeOk(isSymbolSExp(args[0])) :
     proc.op === "string?" ? makeOk(isString(args[0])) :
+    proc.op === "dict" ? isDictPrim(args[0]) ? makeOk(args[0]) : makeFailure(`dict? expects a dict: ${format(args)}`) :
+    proc.op === "get" ? getPrim(args[0], args[1]) :
+    proc.op === "dict?" ?  makeOk(isDictPrim(args[0])) :
     makeFailure(`Bad primitive op: ${format(proc.op)}`);
 
 const minusPrim = (args: Value[]): Result<number> => {
@@ -95,3 +98,16 @@ export const listPrim = (vals: List<Value>): EmptySExp | CompoundSExp =>
 
 const isPairPrim = (v: Value): boolean =>
     isCompoundSExp(v);
+
+const isDictPrim = (v: Value): boolean =>
+    isEmptySExp(v) ? true :
+    isCompoundSExp(v) && isCompoundSExp(v.val1) && isDictPrim(v.val2) ;
+
+const getPrim = (dict: Value, key: Value): Result<Value> => 
+        isEmptySExp(dict) ? 
+            makeFailure(`Key not found: ${format(key)}`) :
+            isCompoundSExp(dict) ? 
+                isCompoundSExp(dict.val1) && dict.val1.val1.valueOf === key.valueOf ? 
+                    makeOk(dict.val1.val2) :
+                    getPrim(dict.val2, key) :
+            makeFailure(`Not a dict: ${format(dict)}`);
