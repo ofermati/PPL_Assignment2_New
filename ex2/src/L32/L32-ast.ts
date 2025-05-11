@@ -1,7 +1,7 @@
 // ===========================================================
 // AST type models
 import { map, zipWith } from "ramda";
-import { makeEmptySExp, makeSymbolSExp, SExpValue, makeCompoundSExp, valueToString } from './L32-value'
+import { makeEmptySExp, makeSymbolSExp, SExpValue, makeCompoundSExp, valueToString, SymbolSExp } from './L32-value'
 import { first, second, rest, allT, isEmpty, isNonEmptyList, List, NonEmptyList } from "../shared/list";
 import { isArray, isString, isNumericString, isIdentifier } from "../shared/type-predicates";
 import { Result, makeOk, makeFailure, bind, mapResult, mapv } from "../shared/result";
@@ -67,7 +67,7 @@ export type Binding = {tag: "Binding"; var: VarDecl; val: CExp; }
 export type LetExp = {tag: "LetExp"; bindings: Binding[]; body: CExp[]; }
 // L3
 export type LitExp = {tag: "LitExp"; val: SExpValue; }
-export type DictExp   = { tag: "DictExp";   entries: [SExpValue, SExpValue][] };
+export type DictExp   = { tag: "DictExp";   entries: [SymbolSExp, CExp][] };
 
 // Type value constructors for disjoint types
 export const makeProgram = (exps: Exp[]): Program => ({tag: "Program", exps: exps});
@@ -93,7 +93,7 @@ export const makeLetExp = (bindings: Binding[], body: CExp[]): LetExp =>
 // L3
 export const makeLitExp = (val: SExpValue): LitExp =>
     ({tag: "LitExp", val: val});
-export const makeDictExp   = (entries: [SExpValue, SExpValue][]): DictExp    => ({ tag: "DictExp", entries });
+export const makeDictExp   = (entries: [SymbolSExp, CExp][]): DictExp    => ({ tag: "DictExp", entries });
 
 
 // Type predicates for disjoint types
@@ -264,14 +264,17 @@ const parseDictExp = (params: Sexp[]): Result<DictExp> => {
     if (isEmpty(params))
         return makeFailure("dict expects at least one (key val) pair");
 
-    const parsePair = (p: Sexp): Result<[SExpValue, SExpValue]> => {
+    const parsePair = (p: Sexp): Result<[SymbolSExp, CExp]> => {
         if (!isNonEmptyList<Sexp>(p) || p.length !== 2)
             return makeFailure(`dict entry must be of form (key val): ${format(p)}`);
         const [kSexp, vSexp] = p;
-        return bind(parseSExp(kSexp), (key: SExpValue) =>
-               mapv(parseSExp(vSexp), (val: SExpValue) => [key, val] as [SExpValue, SExpValue]));
+        return bind(parseSExp(kSexp), (key: SExpValue) => {
+            if (!isSymbolSExp(key)) {
+                return makeFailure(`dict keys must be symbols. Got: ${format(key)}`);
+            }
+            return mapv(parseL32CExp(vSexp), (val: CExp) => [key, val]);
+        });
     };
-
     return mapv(mapResult(parsePair, params), (entries) => makeDictExp(entries));
 };
 
@@ -337,6 +340,6 @@ export const unparseL32 = (exp: Program | Exp): string =>
     isPrimOp(exp) ? exp.op :
     isLetExp(exp) ? unparseLetExp(exp) :
     isDefineExp(exp) ? `(define ${exp.var.var} ${unparseL32(exp.val)})` :
-    isDictExp(exp) ? `(dict ${exp.entries.map(([k,v]) => `(${valueToString(k)} ${valueToString(v)})`).join(" ")})` :
+    isDictExp(exp) ? `(dict ${exp.entries.map(([k,v]) => `(${valueToString(k)} $${unparseL32(v)})`).join(" ")})` :
     isProgram(exp) ? `(L32 ${unparseLExps(exp.exps)})` :
     exp;

@@ -3,7 +3,8 @@
 
 import { isPrimOp, CExp, PrimOp, VarDecl } from './L32-ast';
 import { isNumber, isArray, isString } from '../shared/type-predicates';
-import { append } from 'ramda';
+import { append, map } from 'ramda';
+import { Env } from './L32-env';
 
 export type Value = SExpValue;
 
@@ -19,6 +20,7 @@ export type Closure = {
 }
 export const makeClosure = (params: VarDecl[], body: CExp[]): Closure =>
     ({tag: "Closure", params: params, body: body});
+
 export const isClosure = (x: any): x is Closure => x.tag === "Closure";
 
 // ========================================================
@@ -36,7 +38,7 @@ export type SymbolSExp = {
     val: string;
 }
 
-export type SExpValue = number | boolean | string | PrimOp | Closure | SymbolSExp | EmptySExp | CompoundSExp;
+export type SExpValue = number | boolean | string | PrimOp | Closure | SymbolSExp | EmptySExp | CompoundSExp | DictValue;
 export const isSExp = (x: any): x is SExpValue =>
     typeof(x) === 'string' || typeof(x) === 'boolean' || typeof(x) === 'number' ||
     isSymbolSExp(x) || isCompoundSExp(x) || isEmptySExp(x) || isPrimOp(x) || isClosure(x);
@@ -80,27 +82,24 @@ export const valueToString = (val: Value): string =>
     isSymbolSExp(val) ? val.val :
     isEmptySExp(val) ? "'()" :
     isCompoundSExp(val) ? compoundSExpToString(val) :
+    isDictValue(val) ? dictToString(val) :
     val;
 
 // ========================================================
 // dictValue
 export type DictValue = {
     tag: "DictValue";
-    entries: [SExpValue,SExpValue][];
+    entries: [SymbolSExp , Value][];
+    env: Env;
 }
-export const makeDictValue = (entries: [SExpValue,SExpValue][]): DictValue =>
-
-
-
-    export interface DictValue {
-    tag: "DictValue";
-    entries: { key: string; val: Value }[];
-}
-
-export const makeDictValue = (entries: { key: string; val: Value }[]): DictValue => ({
-    tag: "DictValue",
-    entries
-});
 
 export const isDictValue = (x: any): x is DictValue =>
-    x.tag === "DictValue";
+    x.tag === "DictValue";
+
+export const makeDictValue = (entries: [SymbolSExp , Value][], env:Env): DictValue =>
+    ({tag: "DictValue", entries: entries, env: env});
+
+export const dictToString = (dict: DictValue): string =>
+    `(dict ${dict.entries.map(
+        ([k, v]) => `(${k.val} ${valueToString(v)})`
+    ).join(" ")})`;

@@ -1,5 +1,5 @@
 // L32-eval.ts
-import { map } from "ramda";
+import { find, map } from "ramda";
 import { DictExp, isCExp, isDictExp, isLetExp } from "./L32-ast";
 import { BoolExp, CExp, Exp, IfExp, LitExp, NumExp,
          PrimOp, ProcExp, Program, StrExp, VarDecl } from "./L32-ast";
@@ -8,7 +8,7 @@ import { isAppExp, isBoolExp, isDefineExp, isIfExp, isLitExp, isNumExp,
 import { makeBoolExp, makeLitExp, makeNumExp, makeProcExp, makeStrExp } from "./L32-ast";
 import { parseL32Exp } from "./L32-ast";
 import { applyEnv, makeEmptyEnv, makeEnv, Env } from "./L32-env";
-import { isClosure, makeClosure, Closure, Value, SExpValue, isSymbolSExp } from "./L32-value";
+import { isClosure, makeClosure, Closure, Value, SExpValue, isSymbolSExp, DictValue, SymbolSExp, makeDictValue } from "./L32-value";
 import { first, rest, isEmpty, List, isNonEmptyList } from '../shared/list';
 import { isBoolean, isNumber, isString } from "../shared/type-predicates";
 import { Result, makeOk, makeFailure, bind, mapResult, mapv } from "../shared/result";
@@ -34,7 +34,7 @@ const L32applicativeEval = (exp: CExp, env: Env): Result<Value> =>
                         bind(mapResult(param => L32applicativeEval(param, env), exp.rands), (rands: Value[]) =>
                             L32applyProcedure(rator, rands, env))) :
     isLetExp(exp) ? makeFailure('"let" not supported (yet)') :
-    isDictExp(exp) ? evalDictExp(exp, env) :
+    isDictExp(exp) ? evalDict(exp, env) :
     exp;
 
 export const isTrueValue = (x: Value): boolean =>
@@ -93,18 +93,40 @@ const evalDefineExps = (def: Exp, exps: Exp[], env: Env): Result<Value> =>
                                 evalSequence(exps, makeEnv(def.var.var, rhs, env))) :
     makeFailure(`Unexpected in evalDefine: ${format(def)}`);
 
-    const evalDictExp = (exp: DictExp, env: Env): Result<Value> => {
-        const entriesResult = mapResult(
-            ([k, v]: [SExpValue, SExpValue]) => 
-                isSymbolSExp(k) ?
-                    bind(L32applicativeEval(v, env), (val: Value) =>
-                        makeOk({ key: k.val, val: val })) :
-                    makeFailure('Dict keys must be symbols, got ${format(k)}')
-        , exp.entries);
+    // const evalDict = (exp: DictExp, env: Env): Result<Value> => {
+    //     const entriesResult = mapResult(
+    //         ([k, v]: [SExpValue, SExpValue]) => 
+    //             isSymbolSExp(k) ?
+    //                 bind(L32applicativeEval(v, env), (val: Value) =>
+    //                     makeOk({ key: k.val, val: val })) :
+    //                 makeFailure('Dict keys must be symbols, got ${format(k)}')
+    //     , exp.entries);
     
-        return bind(entriesResult, (entries) =>
-            makeOk(makeDictValue(entries)));
-    };
+    //     return bind(entriesResult, (entries) =>
+    //         makeOk(makeDictValue(entries)));
+    // };
+
+const evalDict = (exp: DictExp, env: Env): Result<DictValue> => 
+    makeDict(exp.entries, env);
+
+export const makeDict = (entries: [SymbolSExp, CExp][], env: Env): Result<DictValue> => {
+    return bind(
+        mapResult(
+            ([key, cexp]: [SymbolSExp, CExp]) =>
+                bind(L32applicativeEval(cexp, env), (value: Value) =>
+                    makeOk<[SymbolSExp, Value]>([key, value])
+                ),
+            entries
+        ),
+        (evaluatedEntries: [SymbolSExp, Value][]) =>
+            makeOk(makeDictValue(evaluatedEntries, env))
+    );
+};
+
+const applyDict = (dict: DictValue, key: SymbolSExp, env: Env): Result<Value> => {
+    const match = find((pair: [SymbolSExp , Value]) => key.val === pair[0].val , dict.entries);
+    return match ? makeOk(match[1]) : makeFailure(`Key not found: ${key.val}`);
+};
 
 
 // Main program
