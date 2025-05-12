@@ -101,16 +101,16 @@ const isPairPrim = (v: Value): boolean =>
 
 const dictPrim = (args: Value[]): Result<Value> => {
     if (args.length !== 1) {
-        return makeFailure("dict expects exactly one argument: ${format(args)}");
+        return makeFailure('dict expects exactly one argument: ${format(args)}');
     }
     const val = args[0];
     // אם הערך הוא CompoundSExp – נבדוק שהוא מילון חוקי
     if (isCompoundSExp(val) || isEmptySExp(val)) {
         return isDictPrim(val)
             ? makeOk(val)
-            : makeFailure("dict expects a quoted list of unique symbol-key pairs: ${format(args)}");
+            : makeFailure('dict expects a quoted list of unique symbol-key pairs: ${format(args)}');
     } else {
-        return makeFailure("dict expects a quoted list: ${format(args)}");
+        return makeFailure('dict expects a quoted list: ${format(args)}');
     }
 };
 

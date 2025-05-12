@@ -122,19 +122,19 @@ export const makeDict = (entries: [SymbolSExp, CExp][], env: Env): Result<DictVa
 const applyDict = (dict: DictValue, args: Value[], env: Env): Result<Value> => {
     // בדיקה: בדיוק מפתח אחד
     if (args.length !== 1) {
-        return makeFailure("Dictionary application expects exactly one argument");
+        return makeFailure('Dictionary application expects exactly one argument');
     }
     const key = args[0];
     // בדיקה: המפתח חייב להיות מסוג SymbolSExp
     if (!isSymbolSExp(key)) {
-        return makeFailure("Dictionary key must be a symbol");
+        return makeFailure('Dictionary key must be a symbol');
     }
     // שליפת ערך מהמילון
     const match = find(
         (pair: [SymbolSExp, Value]) => key.val === pair[0].val,
         dict.entries
     );
-    return match ? makeOk(match[1]) : makeFailure("Key not found: ${key.val}");
+    return match ? makeOk(match[1]) : makeFailure('Key not found: ${key.val}');
 };
 
 

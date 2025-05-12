@@ -1,41 +1,61 @@
-(define dict 
-    (lambda (entries) 
-        (if (dict? entries) 
-            entries 
-            (make-error "invalid dictionary structure"))))
+(define contains-key?
+  (lambda (key lst)
+    (if (eq? lst '())
+        #f
+        (if (eq? key (car (car lst)))
+            #t
+            (contains-key? key (cdr lst))))))
 
+(define check-duplicates
+  (lambda (pairs seen)
+    (if (eq? pairs '())
+        #f
+        (if (contains-key? (car (car pairs)) seen)
+            #t
+            (check-duplicates (cdr pairs) (cons (car (car pairs)) seen))))))
+
+(define dict
+  (lambda (entries)
+    (if (and (pair? entries)
+             (eq? (car entries) 'quote))
+        (let ((actual (car (cdr entries))))
+          (if (check-duplicates actual '())
+              (make-error "duplicate key in dict")
+              actual))
+        entries)))
+
+(define get
+  (lambda (d k)
+    (if (eq? d '())
+        (make-error "key not found")
+        (if (eq? (car (car d)) k)
+            (cdr (car d))
+            (get (cdr d) k)))))
 
 (define dict?
-  (lambda (x)
-    (and (list? x)
-         (or (null? x)
-             (and (pair? (car x))
-                  (not (null? (cdr (car x))))
-                  (null? (cdr (cdr (car x))))
-                  (dict? (cdr x)))))))
-
-(define get 
-  (lambda (dict x)
-    (if (null? dict)
-        (make-error "key not found")
-        (if (eq? (car (car dict)) x)
-            (cdr (car dict))
-            (get (cdr dict) x)))))
-
+  (lambda (d)
+    (if (eq? d '())
+        #t
+        (if (pair? d)
+            (if (pair? (car d))
+                (if (symbol? (car (car d)))
+                    (dict? (cdr d))
+                    #f)
+                #f)
+            #f))))
 
 (define make-error
   (lambda (msg)
-    (list 'error msg)))
-
+    (cons 'error msg)))
 
 (define is-error?
-  (lambda (x)
-    (and (list? x)
-         (eq? (car x) 'error))))
-
+  (lambda (v)
+    (if (pair? v)
+        (eq? (car v) 'error)
+        #f)))
 
 (define bind
-  (lambda (x f)
-    (if (is-error? x)
-        x
-        (f x))))
+  (lambda (v f)
+    (if (is-error? v)
+        v
+        (f v))))
