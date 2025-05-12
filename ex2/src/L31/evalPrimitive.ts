@@ -99,34 +99,49 @@ export const listPrim = (vals: List<Value>): EmptySExp | CompoundSExp =>
 const isPairPrim = (v: Value): boolean =>
     isCompoundSExp(v);
 
-const dictPrim = (args: Value[]): Result<Value> =>
-    args.length !== 1
-        ? makeFailure(`dict expects exactly one argument: ${format(args)}`)
-        : isDictPrim(args[0])
-            ? makeOk(args[0])                      // מילון תקין – מחזירים כמו־שהוא
-            : makeFailure(`dict expects a quoted list of unique symbol-key pairs: ${format(args)}`);
-
+const dictPrim = (args: Value[]): Result<Value> => {
+    if (args.length !== 1) {
+        return makeFailure("dict expects exactly one argument: ${format(args)}");
+    }
+    const val = args[0];
+    // אם הערך הוא CompoundSExp – נבדוק שהוא מילון חוקי
+    if (isCompoundSExp(val) || isEmptySExp(val)) {
+        return isDictPrim(val)
+            ? makeOk(val)
+            : makeFailure("dict expects a quoted list of unique symbol-key pairs: ${format(args)}");
+    } else {
+        return makeFailure("dict expects a quoted list: ${format(args)}");
+    }
+};
 
 
 const isDictPrim = (v: Value): boolean => {
     const helper = (node: Value, seen: ReadonlySet<string>): boolean => {
-        isEmptySExp(node)? true : false;
+        if (isEmptySExp(node))  // ← זה היה חסר!
+            return true;
+
         if (!isCompoundSExp(node))
             return false;
+
         const pair = node.val1;     // (k . val)
         const rest = node.val2;
+
         if (!isCompoundSExp(pair))
             return false;
+
         const key = pair.val1;
         if (!isSymbolSExp(key))
             return false;
+
         const nextSeen = new Set(seen);
         nextSeen.add(key.val);
 
-        if (nextSeen.size !== seen.size + 1)       // ==> key כבר הופיע קודם
+        if (nextSeen.size !== seen.size + 1)  // כלומר: key כבר הופיע קודם
             return false;
+
         return helper(rest, nextSeen);
     };
+
     return helper(v, new Set());
 };
 
