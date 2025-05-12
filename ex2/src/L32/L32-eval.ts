@@ -8,7 +8,7 @@ import { isAppExp, isBoolExp, isDefineExp, isIfExp, isLitExp, isNumExp,
 import { makeBoolExp, makeLitExp, makeNumExp, makeProcExp, makeStrExp } from "./L32-ast";
 import { parseL32Exp } from "./L32-ast";
 import { applyEnv, makeEmptyEnv, makeEnv, Env } from "./L32-env";
-import { isClosure, makeClosure, Closure, Value, SExpValue, isSymbolSExp, DictValue, SymbolSExp, makeDictValue } from "./L32-value";
+import { isClosure, makeClosure, Closure, Value, SExpValue, isSymbolSExp, DictValue, SymbolSExp, makeDictValue, isDictValue } from "./L32-value";
 import { first, rest, isEmpty, List, isNonEmptyList } from '../shared/list';
 import { isBoolean, isNumber, isString } from "../shared/type-predicates";
 import { Result, makeOk, makeFailure, bind, mapResult, mapv } from "../shared/result";
@@ -51,6 +51,7 @@ const evalProc = (exp: ProcExp, env: Env): Result<Closure> =>
 const L32applyProcedure = (proc: Value, args: Value[], env: Env): Result<Value> =>
     isPrimOp(proc) ? applyPrimitive(proc, args) :
     isClosure(proc) ? applyClosure(proc, args, env) :
+    isDictValue(proc) ? applyDict(proc, args , env) :
     makeFailure(`Bad procedure ${format(proc)}`);
 
 // Applications are computed by substituting computed
@@ -93,23 +94,18 @@ const evalDefineExps = (def: Exp, exps: Exp[], env: Env): Result<Value> =>
                                 evalSequence(exps, makeEnv(def.var.var, rhs, env))) :
     makeFailure(`Unexpected in evalDefine: ${format(def)}`);
 
-    // const evalDict = (exp: DictExp, env: Env): Result<Value> => {
-    //     const entriesResult = mapResult(
-    //         ([k, v]: [SExpValue, SExpValue]) => 
-    //             isSymbolSExp(k) ?
-    //                 bind(L32applicativeEval(v, env), (val: Value) =>
-    //                     makeOk({ key: k.val, val: val })) :
-    //                 makeFailure('Dict keys must be symbols, got ${format(k)}')
-    //     , exp.entries);
-    
-    //     return bind(entriesResult, (entries) =>
-    //         makeOk(makeDictValue(entries)));
-    // };
 
 const evalDict = (exp: DictExp, env: Env): Result<DictValue> => 
     makeDict(exp.entries, env);
 
 export const makeDict = (entries: [SymbolSExp, CExp][], env: Env): Result<DictValue> => {
+    // בדיקת כפילות מפתחות
+    const keys = entries.map(([key, _]) => key.val);
+    const uniqueKeys = new Set(keys);
+    if (keys.length !== uniqueKeys.size) {
+        return makeFailure("Duplicate keys in dictionary");
+    }
+    // הרצת הערכים רק אחרי בדיקות
     return bind(
         mapResult(
             ([key, cexp]: [SymbolSExp, CExp]) =>
@@ -119,13 +115,26 @@ export const makeDict = (entries: [SymbolSExp, CExp][], env: Env): Result<DictVa
             entries
         ),
         (evaluatedEntries: [SymbolSExp, Value][]) =>
-            makeOk(makeDictValue(evaluatedEntries, env))
+            makeOk(makeDictValue(evaluatedEntries, env))
     );
 };
 
-const applyDict = (dict: DictValue, key: SymbolSExp, env: Env): Result<Value> => {
-    const match = find((pair: [SymbolSExp , Value]) => key.val === pair[0].val , dict.entries);
-    return match ? makeOk(match[1]) : makeFailure(`Key not found: ${key.val}`);
+const applyDict = (dict: DictValue, args: Value[], env: Env): Result<Value> => {
+    // בדיקה: בדיוק מפתח אחד
+    if (args.length !== 1) {
+        return makeFailure("Dictionary application expects exactly one argument");
+    }
+    const key = args[0];
+    // בדיקה: המפתח חייב להיות מסוג SymbolSExp
+    if (!isSymbolSExp(key)) {
+        return makeFailure("Dictionary key must be a symbol");
+    }
+    // שליפת ערך מהמילון
+    const match = find(
+        (pair: [SymbolSExp, Value]) => key.val === pair[0].val,
+        dict.entries
+    );
+    return match ? makeOk(match[1]) : makeFailure("Key not found: ${key.val}");
 };
 
 
