@@ -90,7 +90,7 @@ isBoolExp(exp)
   : isAppExp(exp)
   ? unparseAppExp(exp)
   : isPrimOp(exp)
-  ? primOpToJS(exp.op)
+  ? primitiveAsLambda(exp.op)
   : isDefineExp(exp)
   ? `const ${exp.var.var} = ${unparseL2JS(exp.val)}`
   : isProgram(exp)
@@ -121,20 +121,24 @@ isProcExp(exp) || isIfExp(exp) || (isAppExp(exp) && !isPrimOp(exp.rator));
 //                        Primitive operators handling
 // -----------------------------------------------------------------------------
 
-const primOpToJS = (op: string): string => {
-switch (op) {
-  case '=':
-  case 'eq?':
-    return '===';
-  case 'and':
-    return '&&';
-  case 'or':
-    return '||';
-  case 'not':
-    return '!';
-  default:
-    return op;
-}
+const primitiveAsLambda = (op: string): string => {
+  switch (op) {
+    case 'number?':
+      return '((x) => typeof(x) === \'number\')';
+    case 'boolean?':
+      return '((x) => typeof(x) === \'boolean\')';
+    case '=':
+    case 'eq?':
+      return '((x, y) => x === y)';
+    case 'and':
+      return '((x, y) => x && y)';
+    case 'or':
+      return '((x, y) => x || y)';
+    case 'not':
+      return '((x) => !x)';
+    default:
+      return op;
+  }
 };
 
 const primAppToJS = (op: string, args: string[]): string => {
@@ -156,10 +160,10 @@ switch (op) {
   case 'not':
     return `(!${args[0]})`;
   case 'number?':
-    return `(typeof ${args[0]} === 'number')`;
+    return `((x) => typeof(x) === 'number')(${args[0]})`;
   case 'boolean?':
     return `(typeof ${args[0]} === 'boolean')`;
   default:
-    return `${op}(${args.join(',')})`;
+    return `((x) => typeof(x) === 'boolean')(${args[0]})`;
 }
 };
